@@ -1,3 +1,10 @@
+//
+//  PGLoaderView.swift
+//  Molten Burst
+//
+//
+
+
 import SwiftUI
 
 struct PGLoaderView: View {
@@ -7,7 +14,7 @@ struct PGLoaderView: View {
        var body: some View {
            ZStack {
                ZStack {
-                   Image(.loaderViewLogoIF)
+                   Image(.loaderViewLogoMB)
                        .resizable()
                        .ignoresSafeArea()
                        .scaledToFill()
@@ -18,7 +25,7 @@ struct PGLoaderView: View {
                
                VStack(spacing: 0) {
                    
-                   Image(.loaderViewLogoIF)
+                   Image(.loaderViewLogoMB)
                        .resizable()
                        .scaledToFit()
                        .frame(height: 200)
