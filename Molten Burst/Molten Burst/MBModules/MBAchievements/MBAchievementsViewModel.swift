@@ -1,5 +1,5 @@
 //
-//  IFAchievementsViewModel.swift
+//  MBAchievementsViewModel.swift
 //  Molten Burst
 //
 //
@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-class IFAchievementsViewModel: ObservableObject {
+class MBAchievementsViewModel: ObservableObject {
     
     @Published var achievements: [MBAchievement] = [
         MBAchievement(image: "achieve1ImageMB", title: "achieve1TextMB", isAchieved: false),
