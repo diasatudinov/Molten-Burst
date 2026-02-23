@@ -1,3 +1,10 @@
+//
+//  ZZUser.swift
+//  Molten Burst
+//
+//
+
+
 import SwiftUI
 
 class ZZUser: ObservableObject {

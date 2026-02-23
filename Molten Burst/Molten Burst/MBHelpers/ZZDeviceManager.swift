@@ -1,3 +1,10 @@
+//
+//  ZZDeviceManager.swift
+//  Molten Burst
+//
+//
+
+
 import UIKit
 
 class ZZDeviceManager {

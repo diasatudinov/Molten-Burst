@@ -2,7 +2,6 @@
 //  Molten_BurstApp.swift
 //  Molten Burst
 //
-//  Created by Dias Atudinov on 23.02.2026.
 //
 
 import SwiftUI
