@@ -11,40 +11,40 @@ import SwiftUI
 
 final class MBShopViewModel: ObservableObject {
     // MARK: – Shop catalogues
-    @Published var shopBgItems: [JGItem] = [
-        JGItem(name: "bg1", image: "bgImage1MB", icon: "gameBgIcon1MB", text: "gameBgText1MB", price: 100),
-        JGItem(name: "bg2", image: "bgImage2MB", icon: "gameBgIcon2MB", text: "gameBgText2MB", price: 100),
-        JGItem(name: "bg3", image: "bgImage3MB", icon: "gameBgIcon3MB", text: "gameBgText3MB", price: 100),
-        JGItem(name: "bg4", image: "bgImage4MB", icon: "gameBgIcon4MB", text: "gameBgText4MB", price: 100),
+    @Published var shopBgItems: [MBItem] = [
+        MBItem(name: "bg1", image: "bgImage1MB", icon: "gameBgIcon1MB", text: "gameBgText1MB", price: 100),
+        MBItem(name: "bg2", image: "bgImage2MB", icon: "gameBgIcon2MB", text: "gameBgText2MB", price: 100),
+        MBItem(name: "bg3", image: "bgImage3MB", icon: "gameBgIcon3MB", text: "gameBgText3MB", price: 100),
+        MBItem(name: "bg4", image: "bgImage4MB", icon: "gameBgIcon4MB", text: "gameBgText4MB", price: 100),
 
     ]
     
-    @Published var shopSkinItems: [JGItem] = [
-        JGItem(name: "skin1", image: "skinImage1MB", icon: "skinIcon1MB", text: "skinText1MB", price: 100),
-        JGItem(name: "skin2", image: "skinImage2MB", icon: "skinIcon2MB", text: "skinText2MB", price: 100),
-        JGItem(name: "skin3", image: "skinImage3MB", icon: "skinIcon3MB", text: "skinText3MB", price: 100),
-        JGItem(name: "skin4", image: "skinImage4MB", icon: "skinIcon4MB", text: "skinText4MB", price: 100),
+    @Published var shopSkinItems: [MBItem] = [
+        MBItem(name: "skin1", image: "skinImage1MB", icon: "skinIcon1MB", text: "skinText1MB", price: 100),
+        MBItem(name: "skin2", image: "skinImage2MB", icon: "skinIcon2MB", text: "skinText2MB", price: 100),
+        MBItem(name: "skin3", image: "skinImage3MB", icon: "skinIcon3MB", text: "skinText3MB", price: 100),
+        MBItem(name: "skin4", image: "skinImage4MB", icon: "skinIcon4MB", text: "skinText4MB", price: 100),
 
     ]
     
     // MARK: – Bought
-    @Published var boughtBgItems: [JGItem] = [
-        JGItem(name: "bg1", image: "bgImage1MB", icon: "gameBgIcon1MB", text: "gameBgText1MB", price: 100),
+    @Published var boughtBgItems: [MBItem] = [
+        MBItem(name: "bg1", image: "bgImage1MB", icon: "gameBgIcon1MB", text: "gameBgText1MB", price: 100),
     ] {
         didSet { saveBoughtBg() }
     }
     
-    @Published var boughtSkinItems: [JGItem] = [
-        JGItem(name: "skin1", image: "skinImage1MB", icon: "skinIcon1MB", text: "skinText1MB", price: 100),
+    @Published var boughtSkinItems: [MBItem] = [
+        MBItem(name: "skin1", image: "skinImage1MB", icon: "skinIcon1MB", text: "skinText1MB", price: 100),
     ] {
         didSet { saveBoughtSkins() }
     }
     
     // MARK: – Current selections
-    @Published var currentBgItem: JGItem? {
+    @Published var currentBgItem: MBItem? {
         didSet { saveCurrentBg() }
     }
-    @Published var currentSkinItem: JGItem? {
+    @Published var currentSkinItem: MBItem? {
         didSet { saveCurrentSkin() }
     }
     
@@ -72,7 +72,7 @@ final class MBShopViewModel: ObservableObject {
     }
     private func loadCurrentBg() {
         if let data = UserDefaults.standard.data(forKey: bgKey),
-           let item = try? JSONDecoder().decode(JGItem.self, from: data) {
+           let item = try? JSONDecoder().decode(MBItem.self, from: data) {
             currentBgItem = item
         } else {
             currentBgItem = shopBgItems.first
@@ -84,7 +84,7 @@ final class MBShopViewModel: ObservableObject {
     }
     private func loadBoughtBg() {
         if let data = UserDefaults.standard.data(forKey: boughtBgKey),
-           let items = try? JSONDecoder().decode([JGItem].self, from: data) {
+           let items = try? JSONDecoder().decode([MBItem].self, from: data) {
             boughtBgItems = items
         }
     }
@@ -98,7 +98,7 @@ final class MBShopViewModel: ObservableObject {
     }
     private func loadCurrentSkin() {
         if let data = UserDefaults.standard.data(forKey: skinKey),
-           let item = try? JSONDecoder().decode(JGItem.self, from: data) {
+           let item = try? JSONDecoder().decode(MBItem.self, from: data) {
             currentSkinItem = item
         } else {
             currentSkinItem = shopSkinItems.first
@@ -110,13 +110,13 @@ final class MBShopViewModel: ObservableObject {
     }
     private func loadBoughtSkins() {
         if let data = UserDefaults.standard.data(forKey: boughtSkinKey),
-           let items = try? JSONDecoder().decode([JGItem].self, from: data) {
+           let items = try? JSONDecoder().decode([MBItem].self, from: data) {
             boughtSkinItems = items
         }
     }
     
     // MARK: – Example buy action
-    func buy(_ item: JGItem, category: JGItemCategory) {
+    func buy(_ item: MBItem, category: MBItemCategory) {
         switch category {
         case .background:
             guard !boughtBgItems.contains(item) else { return }
@@ -127,7 +127,7 @@ final class MBShopViewModel: ObservableObject {
         }
     }
     
-    func isPurchased(_ item: JGItem, category: JGItemCategory) -> Bool {
+    func isPurchased(_ item: MBItem, category: MBItemCategory) -> Bool {
         switch category {
         case .background:
             return boughtBgItems.contains(where: { $0.name == item.name })
@@ -136,7 +136,7 @@ final class MBShopViewModel: ObservableObject {
         }
     }
     
-    func selectOrBuy(_ item: JGItem, user: ZZUser, category: JGItemCategory) {
+    func selectOrBuy(_ item: MBItem, user: ZZUser, category: MBItemCategory) {
         
         switch category {
         case .background:
@@ -162,11 +162,11 @@ final class MBShopViewModel: ObservableObject {
         }
     }
     
-    func isMoneyEnough(item: JGItem, user: ZZUser, category: JGItemCategory) -> Bool {
+    func isMoneyEnough(item: MBItem, user: ZZUser, category: MBItemCategory) -> Bool {
         user.money >= item.price
     }
     
-    func isCurrentItem(item: JGItem, category: JGItemCategory) -> Bool {
+    func isCurrentItem(item: MBItem, category: MBItemCategory) -> Bool {
         switch category {
         case .background:
             guard let currentItem = currentBgItem, currentItem.name == item.name else {
@@ -184,7 +184,7 @@ final class MBShopViewModel: ObservableObject {
         }
     }
     
-    func nextCategory(category: JGItemCategory) -> JGItemCategory {
+    func nextCategory(category: MBItemCategory) -> MBItemCategory {
         if category == .skin {
             return .background
         } else {
@@ -193,12 +193,12 @@ final class MBShopViewModel: ObservableObject {
     }
 }
 
-enum JGItemCategory: String {
+enum MBItemCategory: String {
     case background = "background"
     case skin = "skin"
 }
 
-struct JGItem: Codable, Hashable {
+struct MBItem: Codable, Hashable {
     var id = UUID()
     var name: String
     var image: String
