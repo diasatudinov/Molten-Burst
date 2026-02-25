@@ -95,7 +95,7 @@ struct PGMenuView: View {
                 }
             )
             .fullScreenCover(isPresented: $showGame) {
-//                GameView(viewModel: shopVM)
+                GameView(shopVM: shopVM)
             }
             .fullScreenCover(isPresented: $showShop) {
                 MBShopView(viewModel: shopVM)

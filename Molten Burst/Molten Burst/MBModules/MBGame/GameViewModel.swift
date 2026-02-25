@@ -1,3 +1,11 @@
+//
+//  GameViewModel.swift
+//  Molten Burst
+//
+//  Created by Dias Atudinov on 24.02.2026.
+//
+
+
 import SwiftUI
 
 final class GameViewModel: ObservableObject {
@@ -22,8 +30,18 @@ final class GameViewModel: ObservableObject {
     @Published var isGameOver: Bool = false
     @Published var isRunning: Bool = true
 
+    @AppStorage("BestSCore") var bestScore = 0
+    
     private var timer: Timer?
     private var roadCrossCount: Int = 0 // для подсчета “сколько дорог пересек”
+
+    // MARK: - Генератор паттерна: Sidewalk -> Road(1..3) -> Sidewalk -> ...
+    private enum GenerationPhase {
+        case needSidewalk
+        case roads(remaining: Int) // сколько road полос еще нужно сгенерировать до следующего sidewalk
+    }
+
+    private var genPhase: GenerationPhase = .needSidewalk
 
     // MARK: - Init / Start
     init() {
@@ -41,12 +59,13 @@ final class GameViewModel: ObservableObject {
         lanes = []
         cars = []
 
-        // Создадим стартовый набор полос (снизу вверх)
-        // Нижняя — sidewalk (безопасная)
         lanes.append(makeSidewalkLane())
-        // Далее немного полос
+
+        // После sidewalk обязаны быть дороги 1..3
+        genPhase = .roads(remaining: Int.random(in: 1...3))
+
         while lanes.count < visibleRows {
-            lanes.append(makeRandomLane(distance: lanes.count))
+            lanes.append(makeNextLane(distance: lanes.count))
         }
 
         startTimer()
@@ -70,12 +89,13 @@ final class GameViewModel: ObservableObject {
 
         // 2) Удаляем машины, которые ушли далеко за границы
         cars.removeAll { car in
-            car.x < -2.0 || car.x > Double(columns) + 2.0
+            let wCells = Double(car.type.size.width) / Double(tileSize)
+            return car.x < -wCells - 2.0 || car.x > Double(columns) + wCells + 2.0
         }
 
         // 3) Спавн машин в road lanes
         for idx in lanes.indices {
-            if lanes[idx].type == .road || lanes[idx].type == .crosswalk {
+            if lanes[idx].type == .road {
                 lanes[idx].spawnAccumulator += dt * lanes[idx].spawnRate
                 while lanes[idx].spawnAccumulator >= 1.0 {
                     lanes[idx].spawnAccumulator -= 1.0
@@ -92,20 +112,20 @@ final class GameViewModel: ObservableObject {
     func moveUp() {
         guard !isGameOver else { return }
 
+            
         // нельзя выходить выше текущей верхушки? можно — мы добавим полосу при “камера вверх”
         // Игрок двигается на 1 полосу вверх
         let nextRow = playerRowIndex + 1
-        if nextRow < lanes.count {
-            playerRowIndex = nextRow
+        
+        guard nextRow < lanes.count else { return }
+        
+        if isBlocked(x: playerX, rowIndex: nextRow) {
+            return
         }
-
-        // После движения вверх: “камера” едет так, чтобы игрок оставался ближе к низу,
-        // а мир генерировался сверху.
+        
+        playerRowIndex = nextRow
+        
         recenterWorldIfNeeded()
-
-        // Подсчет очков: “количество успешно пройденных дорог”
-        // Засчитываем, если игрок перешел на safe lane после road,
-        // или можно проще: увеличивать за каждый шаг вверх. Ниже — вариант именно “дороги”.
         updateScoreAfterMove()
         checkDeath()
     }
@@ -144,7 +164,14 @@ final class GameViewModel: ObservableObject {
                 .filter { $0.yIndex != 0 }
                 .map { car in
                     var c = car
-                    c = Car(x: c.x, yIndex: c.yIndex - 1, direction: c.direction, speed: c.speed)
+                    c = Car(
+                        x: car.x,
+                        yIndex: car.yIndex - 1,
+                        direction: car.direction,
+                        speed: car.speed,
+                        type: car.type,
+                        imageName: car.imageName
+                    )
                     return c
                 }
 
@@ -153,16 +180,16 @@ final class GameViewModel: ObservableObject {
 
             // Добавляем новую полосу сверху
             let distance = (score + lanes.count) // условная “дальность”
-            lanes.append(makeRandomLane(distance: distance))
+            lanes.append(makeNextLane(distance: distance))
         }
 
         // Поддерживаем размер массива полос ровно visibleRows
         while lanes.count < visibleRows {
-            lanes.append(makeRandomLane(distance: lanes.count + score))
+            lanes.append(makeNextLane(distance: lanes.count + score))
         }
         while lanes.count > visibleRows {
             lanes.removeFirst()
-            cars = cars.filter { $0.yIndex != 0 }.map { Car(x: $0.x, yIndex: $0.yIndex - 1, direction: $0.direction, speed: $0.speed) }
+            cars = cars.filter { $0.yIndex != 0 }.map { Car(x: $0.x, yIndex: $0.yIndex - 1, direction: $0.direction, speed: $0.speed, type: $0.type, imageName: $0.imageName) }
             playerRowIndex = max(0, playerRowIndex - 1)
         }
     }
@@ -172,19 +199,42 @@ final class GameViewModel: ObservableObject {
         guard !isGameOver else { return }
         let lane = lanes[safe: playerRowIndex]
 
-        // Вариант А: смерть просто за то, что стоишь в road полосе
-        if deathOnAnyRoadLane, let lane, (lane.type == .road || lane.type == .crosswalk) {
+        if deathOnAnyRoadLane, let lane, lane.type == .road {
             gameOver()
             return
         }
 
-        // Вариант Б: смерть при совпадении клетки игрока с машиной
-        // Машины движутся по x (Double). Считаем, что машина занимает 1 клетку по ширине.
-        let px = playerX
-        let pr = playerRowIndex
-        for car in cars where car.yIndex == pr {
-            let carCell = Int(round(car.x))
-            if carCell == px {
+        // Rect игрока (центр клетки)
+        let playerCenterX = (Double(playerX) + 0.5) * Double(tileSize)
+        let playerCenterY = (Double(playerRowIndex) + 0.5) * Double(tileSize)
+
+        // Размер игрока (подстрой под свой спрайт)
+        let playerW = Double(tileSize) * 0.75
+        let playerH = Double(tileSize) * 0.75
+
+        let playerRect = CGRect(
+            x: playerCenterX - playerW / 2,
+            y: playerCenterY - playerH / 2,
+            width: playerW,
+            height: playerH
+        )
+
+        // Машины
+        for car in cars where car.yIndex == playerRowIndex {
+            let carCenterX = (car.x + 0.5) * Double(tileSize)
+            let carCenterY = playerCenterY // та же полоса
+
+            let w = Double(car.type.size.width)
+            let h = Double(car.type.size.height)
+
+            let carRect = CGRect(
+                x: carCenterX - w / 2,
+                y: carCenterY - h / 2,
+                width: w,
+                height: h
+            )
+
+            if playerRect.intersects(carRect) {
                 gameOver()
                 return
             }
@@ -194,6 +244,10 @@ final class GameViewModel: ObservableObject {
     private func gameOver() {
         isGameOver = true
         isRunning = false
+        if bestScore < score {
+            bestScore = score
+        }
+        ZZUser.shared.updateUserMoney(for: score)
     }
 
     // MARK: - Очки “пройденных дорог”
@@ -205,7 +259,7 @@ final class GameViewModel: ObservableObject {
         let current = lanes[playerRowIndex]
         let below = lanes[playerRowIndex - 1]
 
-        if (below.type == .road || below.type == .crosswalk) && current.type == .sidewalk {
+        if (below.type == .road) && current.type == .sidewalk {
             roadCrossCount += 1
             score = roadCrossCount
         }
@@ -221,19 +275,39 @@ final class GameViewModel: ObservableObject {
     }
 
     // MARK: - Генерация полос
-    private func makeRandomLane(distance: Int) -> Lane {
-        // distance влияет на сложность (скорость/частоту)
-        // Шанс дорожной полосы увеличим чуть-чуть
-        let roll = Int.random(in: 0...99)
+    private func makeNextLane(distance: Int) -> Lane {
+        switch genPhase {
 
-        if roll < 55 {
-            // road или crosswalk
-            let isCrosswalk = (Int.random(in: 0...9) == 0) // 10% переход
-            return makeRoadLane(distance: distance, type: isCrosswalk ? .crosswalk : .road)
-        } else {
+        case .needSidewalk:
+            // Генерим тротуар (всегда одиночный)
+            genPhase = .roads(remaining: Int.random(in: 1...3))
             return makeSidewalkLane()
+
+        case .roads(let remaining):
+            // Генерим дорогу, уменьшаем счетчик
+            let nextRemaining = remaining - 1
+            if nextRemaining <= 0 {
+                genPhase = .needSidewalk
+            } else {
+                genPhase = .roads(remaining: nextRemaining)
+            }
+            return makeRoadLane(distance: distance)
         }
     }
+    
+//    private func makeRandomLane(distance: Int) -> Lane {
+//        // distance влияет на сложность (скорость/частоту)
+//        // Шанс дорожной полосы увеличим чуть-чуть
+//        let roll = Int.random(in: 0...99)
+//
+//        if roll < 55 {
+//            // road или crosswalk
+//            let isCrosswalk = (Int.random(in: 0...9) == 0) // 10% переход
+//            return makeRoadLane(distance: distance)
+//        } else {
+//            return makeSidewalkLane()
+//        }
+//    }
 
     private func makeSidewalkLane() -> Lane {
         var lane = Lane(
@@ -257,43 +331,75 @@ final class GameViewModel: ObservableObject {
         return lane
     }
 
-    private func makeRoadLane(distance: Int, type: LaneType) -> Lane {
+    private func makeRoadLane(distance: Int) -> Lane {
         let dir = Bool.random() ? 1 : -1
 
-        // скорость растет с distance
-        // baseSpeed = 2.0 клетки/сек, дальше растет до ~6
         let baseSpeed = 2.0
         let speed = min(6.0, baseSpeed + Double(distance) * 0.05)
 
-        // spawnRate тоже немного растет
         let baseSpawn = 0.6
         let spawnRate = min(2.0, baseSpawn + Double(distance) * 0.01)
 
+        // NEW: 0..2 клеток перехода
+        // (если хочешь реже — уменьши вероятность)
+        let count: Int
+        let r = Int.random(in: 0...99)
+        if r < 60 { count = 0 }       // 60% нет перехода
+        else if r < 90 { count = 1 }  // 30% одна клетка
+        else { count = 2 }            // 10% две клетки
+
+        var xs: Set<Int> = []
+        while xs.count < count {
+            xs.insert(Int.random(in: 0..<columns))
+        }
+
         return Lane(
-            type: type,
+            type: .road,
             direction: dir,
             speed: speed,
             spawnRate: spawnRate,
             spawnAccumulator: 0,
-            obstacles: []
+            obstacles: [],
+            crosswalkXs: Array(xs).sorted()
         )
     }
 
     private func spawnCar(inLaneIndex idx: Int) {
         guard lanes.indices.contains(idx) else { return }
         let lane = lanes[idx]
-        guard lane.type == .road || lane.type == .crosswalk else { return }
+        guard lane.type == .road else { return }
 
-        // Спавним за границей экрана
-        let startX: Double = (lane.direction == 1) ? -1.0 : Double(columns) + 1.0
+        // Выбор типа (можешь настроить вероятности)
+        let roll = Int.random(in: 0...99)
+        let vType: VehicleType
+        if roll < 65 { vType = .car }          // 65%
+        else if roll < 85 { vType = .minibus } // 20%
+        else { vType = .bus }                  // 15%
 
-        // Можно добавить правило “не спавнить слишком близко к другой машине в той же lane”
-        // но в твоем ТЗ машины не сталкиваются и не останавливаются — это ок.
+        // случайная картинка из списка типа
+        let chosenName = vType.imageNames.randomElement()
+
+        // Спавним за границей экрана. Учитываем реальную ширину транспорта.
+        let width = vType.size.width
+        let startXPoints: Double
+        if lane.direction == 1 {
+            startXPoints = -Double(width) // слева за экраном
+        } else {
+            startXPoints = Double(columns) * Double(tileSize) + Double(width) // справа за экраном
+        }
+
+        // Важно: сейчас x у нас в "клетках" (Double). Для точных размеров удобнее перевести
+        // машины на "поинты". Но чтобы не ломать всё, сделаем так:
+        // x будет в поинтах / tileSize.
+        let startX = startXPoints / Double(tileSize)
+
         let car = Car(
             x: startX,
             yIndex: idx,
             direction: lane.direction,
-            speed: lane.speed
+            speed: lane.speed,   // скорость в "клетках/сек" как раньше
+            type: vType,
+            imageName: chosenName
         )
         cars.append(car)
     }

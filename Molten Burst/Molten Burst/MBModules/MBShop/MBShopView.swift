@@ -21,57 +21,12 @@ struct MBShopView: View {
     @State var indexBg = 0
     var body: some View {
         ZStack {
-            
-//            if let category = category {
             if category == .skin {
                 achievementItem(item: viewModel.shopSkinItems[indexSkin], category: .skin)
             } else {
                 achievementItem(item: viewModel.shopBgItems[indexBg], category: .background)
 
             }
-//                VStack(spacing: 35) {
-//                    
-//                    Image(category == .skin ? .skinsHeadMB : .bgHeadMB)
-//                        .resizable()
-//                        .scaledToFit()
-//                        .frame(height: ZZDeviceManager.shared.deviceType == .pad ? 100:70)
-//                    
-//                    LazyVGrid(columns: columns, spacing: 12) {
-//                        
-//                        ForEach(category == .skin ?  :viewModel.shopBgItems, id: \.self) { item in
-//                            
-//                            
-//                        }
-//                    }
-//                    
-//                }
-
-//                ZStack {
-//                    
-//                    VStack(spacing: 20) {
-//                        Button {
-//                            category = .skin
-//                        } label: {
-//                            Image(.skinsHeadMB)
-//                                .resizable()
-//                                .scaledToFit()
-//                                .frame(height: ZZDeviceManager.shared.deviceType == .pad ? 100:75)
-//                        }
-//                        
-//                        Button {
-//                            category = .background
-//                        } label: {
-//                            Image(.bgHeadMB)
-//                                .resizable()
-//                                .scaledToFit()
-//                                .frame(height: ZZDeviceManager.shared.deviceType == .pad ? 100:75)
-//                        }
-//                    }
-//                    
-//                }.frame(height: ZZDeviceManager.shared.deviceType == .pad ? 100:400)
-            
-            
-            
             
             VStack {
                 HStack {

@@ -10,7 +10,7 @@ import SwiftUI
 struct Molten_BurstApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            PGMenuView()
         }
     }
 }

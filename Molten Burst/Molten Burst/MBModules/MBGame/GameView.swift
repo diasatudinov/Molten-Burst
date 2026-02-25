@@ -1,9 +1,18 @@
+//
+//  GameView.swift
+//  Molten Burst
+//
+//  Created by Dias Atudinov on 24.02.2026.
+//
+
+
 import SwiftUI
 
 struct GameView: View {
-
+    @Environment(\.presentationMode) var presentationMode
     @StateObject private var vm = GameViewModel()
-
+    @ObservedObject var shopVM: MBShopViewModel
+    
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
@@ -13,6 +22,7 @@ struct GameView: View {
 
                 ZStack {
                     board
+                    
                     if vm.isGameOver { gameOverOverlay }
                 }
                 .frame(
@@ -29,17 +39,36 @@ struct GameView: View {
 
     private var topHUD: some View {
         HStack {
-            Text("Score: \(vm.score)")
-                .font(.system(size: 18, weight: .bold, design: .monospaced))
+            
+            Button {
+                presentationMode.wrappedValue.dismiss()
+                
+            } label: {
+                Image(.backIconMB)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: ZZDeviceManager.shared.deviceType == .pad ? 100:41)
+            }
+            
+            ZStack {
+                Image(.scoreBgMB)
+                    .resizable()
+                    .scaledToFit()
+                VStack {
+                    Text("SCORE")
+                        .font(.system(size: 16, weight: .bold, design: .monospaced))
+                    Text("\(vm.score)")
+                        .font(.system(size: 20, weight: .bold, design: .monospaced))
+                }
                 .foregroundColor(.white)
 
-            Spacer()
+            }
+            .frame(height: 65)
+                .frame(maxWidth: .infinity, alignment: .trailing)
 
-            Toggle("Death on Road", isOn: $vm.deathOnAnyRoadLane)
-                .toggleStyle(.switch)
-                .labelsHidden()
         }
         .padding(.bottom, 8)
+        .padding(.horizontal, 32)
     }
 
     private var board: some View {
@@ -76,9 +105,15 @@ struct GameView: View {
             // “Клетки” (если хочешь видеть сетку)
             HStack(spacing: 0) {
                 ForEach(0..<vm.columns, id: \.self) { _ in
-                    Rectangle()
-                        .strokeBorder(Color(white: 0.15), lineWidth: 1)
+                    Image(tileName(for: lane.type))
+                        .resizable()
+                        .interpolation(.none) // важно для пиксель-арта
+                        .scaledToFill()
                         .frame(width: vm.tileSize, height: vm.tileSize)
+                        .clipped()
+//                    Rectangle()
+//                        .strokeBorder(Color(white: 0.15), lineWidth: 1)
+//                        .frame(width: vm.tileSize, height: vm.tileSize)
                 }
             }
             .position(
@@ -94,17 +129,49 @@ struct GameView: View {
             }
 
             // Разметка “переход” (если crosswalk)
-            if lane.type == .crosswalk {
-                crosswalkMarks(rowIndex: rowIndex)
+            if lane.type == .road, !lane.crosswalkXs.isEmpty {
+                crosswalkTiles(lane: lane, rowIndex: rowIndex)
             }
         }
     }
 
+    private func crosswalkTiles(lane: Lane, rowIndex: Int) -> some View {
+        ZStack {
+            ForEach(lane.crosswalkXs, id: \.self) { x in
+                // Вариант 1: простая разметка поверх асфальта
+                Image("tile_crosswalk")
+                    .resizable()
+                    .interpolation(.none)     // пиксель-арт без размытия
+                    .scaledToFill()
+                    .frame(width: vm.tileSize, height: vm.tileSize)
+                    .clipped()
+                    .position(x: xForColumn(x), y: yForRow(rowIndex))
+            }
+        }
+    }
+    
+    private func tileName(for type: LaneType) -> String {
+        switch type {
+        case .sidewalk: return "tile_sidewalk"
+        case .road: return "tile_road"
+        }
+    }
+    
     private func obstacleView(_ ob: Obstacle, rowIndex: Int) -> some View {
-        RoundedRectangle(cornerRadius: 8)
-            .fill(Color.orange)
-            .frame(width: vm.tileSize * 0.8, height: vm.tileSize * 0.8)
-            .position(x: xForColumn(ob.x), y: yForRow(rowIndex))
+        Group {
+            if UIImage(named: ob.type.imageName) != nil {
+                Image(ob.type.imageName)
+                    .resizable()
+                    .interpolation(.none)   // если пиксель-арт
+                    .scaledToFit()
+                    .padding(ob.type == .box ? 10 : 0)
+            } else {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(ob.type.fallbackColor)
+            }
+        }
+        .frame(width: vm.tileSize * 0.9, height: vm.tileSize * 0.9)
+        .position(x: xForColumn(ob.x), y: yForRow(rowIndex))
     }
 
     private func crosswalkMarks(rowIndex: Int) -> some View {
@@ -119,50 +186,122 @@ struct GameView: View {
     }
 
     private func carView(_ car: Car) -> some View {
-        RoundedRectangle(cornerRadius: 10)
-            .fill(Color.red)
-            .frame(width: vm.tileSize * 0.95, height: vm.tileSize * 0.6)
-            .position(
-                x: CGFloat(car.x) * vm.tileSize + vm.tileSize / 2,
-                y: yForRow(car.yIndex)
-            )
+        let sz = car.type.size
+
+        return Group {
+            if let name = car.imageName, UIImage(named: name) != nil {
+                Image(name)
+                    .resizable()
+                    .interpolation(.none) // пиксель-арт, если нужно
+                    .scaledToFit()
+            } else {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(car.type.fallbackColor)
+            }
+        }
+        .frame(width: sz.width, height: sz.height)
+        .scaleEffect(x: car.direction == -1 ? -1 : 1, y: 1) // разворот по направлению
+        .position(
+            x: CGFloat(car.x) * vm.tileSize + vm.tileSize / 2,
+            y: yForRow(car.yIndex)
+        )
     }
 
-    private var playerView: some View {
-        RoundedRectangle(cornerRadius: 12)
-            .fill(Color.green)
-            .frame(width: vm.tileSize * 0.75, height: vm.tileSize * 0.75)
-            .position(
-                x: xForColumn(vm.playerX),
-                y: yForRow(vm.playerRowIndex)
-            )
-            .shadow(radius: 6)
+    @ViewBuilder private var playerView: some View {
+        if let currentSkin = shopVM.currentSkinItem,  UIImage(named: currentSkin.image) != nil {
+            Image(currentSkin.image)
+                .resizable()
+                .interpolation(.none) // пиксель-арт, если нужно
+                .scaledToFit()
+                .frame(width: vm.tileSize * 0.75, height: vm.tileSize * 0.75)
+                .position(
+                    x: xForColumn(vm.playerX),
+                    y: yForRow(vm.playerRowIndex)
+                )
+        } else {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.green)
+                .frame(width: vm.tileSize * 0.75, height: vm.tileSize * 0.75)
+                .position(
+                    x: xForColumn(vm.playerX),
+                    y: yForRow(vm.playerRowIndex)
+                )
+                .shadow(radius: 6)
+        }
+        
     }
 
     private var gameOverOverlay: some View {
-        VStack(spacing: 12) {
-            Text("GAME OVER")
-                .font(.system(size: 28, weight: .heavy, design: .rounded))
-                .foregroundColor(.white)
-
-            Text("Score: \(vm.score)")
-                .foregroundColor(.white.opacity(0.9))
-
-            Button {
-                vm.reset()
-            } label: {
-                Text("Restart")
-                    .font(.system(size: 18, weight: .bold))
-                    .padding(.horizontal, 22)
-                    .padding(.vertical, 12)
-                    .background(Color.white)
-                    .foregroundColor(.black)
-                    .cornerRadius(12)
+        Image(.gameOverBgMB)
+            .resizable()
+            .scaledToFit()
+            .padding(.horizontal, 50)
+            .overlay(alignment: .bottom) {
+                HStack {
+                    VStack {
+                        Text("YOUR:")
+                        
+                        Image(.scoreBgMB)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(height: 63)
+                            .overlay {
+                                VStack {
+                                    Text("SCORE")
+                                        .font(.system(size: 16, weight: .bold, design: .monospaced))
+                                    Text("\(vm.score)")
+                                        .font(.system(size: 20, weight: .bold, design: .monospaced))
+                                }
+                                .foregroundColor(.white)
+                            }
+                    }
+                    
+                    VStack {
+                        VStack {
+                            Text("BEST:")
+                            
+                            Image(.scoreBgMB)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(height: 63)
+                                .overlay {
+                                    VStack {
+                                        Text("SCORE")
+                                            .font(.system(size: 16, weight: .bold, design: .monospaced))
+                                        Text("\(vm.bestScore)")
+                                            .font(.system(size: 20, weight: .bold, design: .monospaced))
+                                    }
+                                    .foregroundColor(.white)
+                                }
+                        }
+                    }
+                }
+                .padding(.bottom, 70)
             }
-        }
-        .padding(24)
-        .background(Color.black.opacity(0.7))
-        .cornerRadius(18)
+            .overlay(alignment: .bottom) {
+                VStack(spacing: 0) {
+                    
+                    Button {
+                        vm.reset()
+                    } label: {
+                        Image(.replayBtnMB)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(height: 60)
+                    }
+                    
+                    Button {
+                        presentationMode.wrappedValue.dismiss()
+                    } label: {
+                        Image(.mainBtnMB)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(height: 60)
+                    }
+                }
+                .offset(y: 60)
+            }
+            .offset(y: -80)
     }
 
     // MARK: - Swipe Gesture
@@ -199,7 +338,10 @@ struct GameView: View {
         switch type {
         case .sidewalk: return Color(white: 0.18)
         case .road: return Color(white: 0.10)
-        case .crosswalk: return Color(white: 0.12)
         }
     }
+}
+
+#Preview {
+    GameView(shopVM: MBShopViewModel())
 }
