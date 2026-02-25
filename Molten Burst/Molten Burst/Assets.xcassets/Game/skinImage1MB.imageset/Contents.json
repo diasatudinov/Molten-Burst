@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "skinImage1MB.png",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
